@@ -17,8 +17,8 @@
 \tabular{ll}{
 Package: \tab futile.logger\cr
 Type: \tab Package\cr
-Version: \tab 1.0.0\cr
-Date: \tab 2010-04-05\cr
+Version: \tab 1.1.1\cr
+Date: \tab 2010-09-13\cr
 License: \tab LGPL-3\cr
 LazyLoad: \tab yes\cr
 }
@@ -60,7 +60,7 @@ Brian Lee Yung Rowe <r@nurometic.com>
 \seealso{ \code{\link{configLogger}}, \code{\link{addAppender}},
   \code{\link{addLayout}}, \code{\link{addLogger}}, \code{\link{getLogger}} }
 \examples{
-  configLogger('console')
+  configLogger()
   mylogger <- getLogger()
   mylogger(DEBUG, "This won't print")
   mylogger(WARN, "This will print")
