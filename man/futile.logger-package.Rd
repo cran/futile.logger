@@ -17,8 +17,8 @@
 \tabular{ll}{
 Package: \tab futile.logger\cr
 Type: \tab Package\cr
-Version: \tab 1.1.2\cr
-Date: \tab 2010-09-27\cr
+Version: \tab 1.1.3\cr
+Date: \tab 2010-10-20\cr
 License: \tab LGPL-3\cr
 LazyLoad: \tab yes\cr
 }
