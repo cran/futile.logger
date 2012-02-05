@@ -17,8 +17,8 @@
 \tabular{ll}{
 Package: \tab futile.logger\cr
 Type: \tab Package\cr
-Version: \tab 1.1.3\cr
-Date: \tab 2010-10-20\cr
+Version: \tab 1.2.1\cr
+Date: \tab 2012-02-05\cr
 License: \tab LGPL-3\cr
 LazyLoad: \tab yes\cr
 }
@@ -57,10 +57,10 @@ Brian Lee Yung Rowe <r@nurometic.com>
 \keyword{ package }
 \keyword{ attribute }
 \keyword{ logic }
-\seealso{ \code{\link{configLogger}}, \code{\link{addAppender}},
+\seealso{ \code{\link{config_logger}}, \code{\link{addAppender}},
   \code{\link{addLayout}}, \code{\link{addLogger}}, \code{\link{getLogger}} }
 \examples{
-  configLogger()
+  config_logger()
   mylogger <- getLogger()
   mylogger(DEBUG, "This won't print")
   mylogger(WARN, "This will print")

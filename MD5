@@ -1,0 +1,15 @@
+4686c3286794c71aa68f3ca76762f86a *DESCRIPTION
+012592abf4b40a8d741b299df2ded05a *NAMESPACE
+eb5dec9db6d60bfb036925078d6f1729 *R/appender.R
+64cd83ab95088ce4e2f4f35d88cc3ebe *R/config.R
+db2a6c7b7cd14e67368769386c34e2a1 *R/constants.R
+4071ff025bba586b7a9332ce4fd67e08 *R/layout.R
+71ea908669f5c89148a0632fdc5a13ed *R/logger.R
+81648a0958b1b199836c444776d3f527 *R/scat.R
+1e59c15957316506b15366c156827301 *man/appender.Rd
+6586755ee5caa551f1c7fa8977c11305 *man/config.Rd
+e2656b6cb7db5e189f9e961068927291 *man/constants.Rd
+ac6479d20f093a64580710b9706a4c14 *man/futile.logger-package.Rd
+1059b0907ad7b12ffd65d44fdceb2565 *man/layout.Rd
+9017f8d4a8359602d9786e859ed1fce6 *man/logger.Rd
+0fc9bfe9f780f6280544a748b60ae0a5 *man/scat.Rd
