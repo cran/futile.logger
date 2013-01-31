@@ -1,114 +1,58 @@
-# Generic boiler plate
-# simple.layout <- function(level, msg, ...) sprintf("[%s] %s", level,msg)
-# addLayout(simple.layout)
-# addAppender(console.appender, layout=simple.layout)
-# addLogger(, threshold=DEBUG, appender=simple.layout)
-#
-# To use the logger,
-# my.log <- getLogger()
-# my.log(DEBUG, "This is a log message")
-
-# Get appenders associated with the given logger
-loggerAppender <- function(name)
+.log_level <- function(msg, ..., level, name)
 {
-  key <- paste("logger", name, sep='.')
-  logger <- logger.options(key)
-  logger$appender
-}
+  logger <- flog.logger(name)
+  if (level > logger$threshold) { return(invisible()) }
 
-# Get the threshold for the given logger
-loggerThreshold <- function(name)
-{
-  key <- paste("logger", name, sep='.')
-  logger <- logger.options(key)
-  logger$threshold
-}
-
-
-# Create a logger based on the config passed in from the options.manager
-.LogFunction <- function(config)
-{
-  m <- cbind(config$appender, config$layout)
-  function(level, msg)
-  {
-    if (level > config$threshold) { return(invisible()) }
-    
-    apply(m, 1, function(x) {
-      h <- getAppender(x[1])
-      f <- getLayout(x[2])
-      h(level, msg, layout=f)
-    })
-    invisible()
-  }
-}
-
-# Basically the same as the .LogFunction but obsessively looks up the config
-# for the logger.
-.LookupFunction <- function(name)
-{
-  function(level, msg)
-  {
-    config <- getLogger(name, failfast=TRUE)
-    if (is.null(config)) return(invisible())
-
-    m <- cbind(config$appender, config$layout)
-    if (level > config$threshold) { return(invisible()) }
-    
-    apply(m, 1, function(x) {
-      h <- getAppender(x[1])
-      f <- getLayout(x[2])
-      h(level, msg, layout=f)
-    })
-    invisible()
-  }
-}
-
-# Get a layout registered in the system. Layouts are called by appenders
-# to format messages.
-getLayout <- function(name)
-{
-  key <- paste("layout", name, sep='.')
-  logger.options(key)
-}
-
-# Add a layout to the system.
-addLayout <- function(name, ...) UseMethod('addLayout')
-addLayout.default <- function(name, ...)
-  addLayout.character(deparse(substitute(name)), name, ...)
-addLayout.character <- function(name, fun, ...)
-{
-  key <- paste("layout", name, sep='.')
-  fn <- function(level, msg) fun(level,msg, ...)
-  logger.options(update=list(key,fn))
+  appender <- flog.appender(name)
+  layout <- flog.layout(name)
+  appender(layout(level, msg, ...))
   invisible()
 }
 
-# Get a appender registered in the system.
-getAppender <- function(name)
+# Get the namespace that a function resides in. If no namespace exists, then
+# return NULL.
+# <environment: namespace:lambda.r>
+get_namespace() %as% 
 {
-  key <- paste("appender", name, sep='.')
-  logger.options(key)
+  s <- capture.output(str(environment(sys.function(1)), give.attr=FALSE))
+  if (length(grep('namespace', s)) < 1) return('ROOT')
+
+  ns <- sub('.*namespace:([^>]+)>.*','\\1', s)
+  ifelse(is.null(ns), 'ROOT', ns)
 }
 
-# Add a appender to the system
-addAppender <- function(name, ..., threshold=NULL) UseMethod('addAppender')
-addAppender.default <- function(name, ..., threshold=NULL)
-  addAppender.character(deparse(substitute(name)), name, ..., threshold=threshold)
-addAppender.character <- function(name, fun, ..., threshold=NULL)
-{
-  key <- paste("appender", name, sep='.')
-  fn <- function(level, msg, layout)
-    fun(level,msg, ..., threshold=threshold, layout=layout)
-  logger.options(update=list(key,fn))
-  invisible()
+
+flog.trace <- function(msg, ..., name=get_namespace()) {
+  .log_level(msg, ..., level=TRACE,name=name)
 }
 
-# Get a logger. If 'name' has not been registered, the inheritance hierarchy
-# will be followed to find an appropriate logger. The logger is actually a
-# function that can be called using the following syntax:
-#   my.log <- getLogger('my.log')
-#   my.log(DEBUG, "This is a log message")
-getLogger <- function(name='ROOT', failfast=FALSE)
+flog.debug <- function(msg, ..., name=get_namespace()) {
+  .log_level(msg, ..., level=TRACE,name=name)
+}
+
+flog.info <- function(msg, ..., name=get_namespace()) {
+  .log_level(msg, ..., level=INFO,name=name)
+}
+
+flog.warn <- function(msg, ..., name=get_namespace()) {
+  .log_level(msg, ..., level=WARN,name=name)
+}
+
+flog.error <- function(msg, ..., name=get_namespace()) {
+  .log_level(msg, ..., level=ERROR,name=name)
+}
+
+flog.fatal <- function(msg, ..., name=get_namespace()) {
+  .log_level(msg, ..., level=FATAL,name=name)
+}
+
+# Get a logger. By default, use the package namespace or use the 'ROOT' logger.
+flog.logger() %as%
+{
+  flog.logger(get_namespace())
+}
+
+flog.logger(name) %as%
 {
   if (nchar(name) < 1) name <- 'ROOT'
   #cat(sprintf("Searching for logger %s\n", name))
@@ -116,32 +60,85 @@ getLogger <- function(name='ROOT', failfast=FALSE)
   key <- paste("logger", name, sep='.')
   # TODO: Search hierarchy
   os <- logger.options(key)
-  if (! is.null(os)) return(.LogFunction(os))
-  if (name == 'ROOT') 
-  {
-    if (failfast) return(NULL)
-    #scat("ROOT logger not yet configured. This logger is disabled")
-    #fn <- function(...) { invisible() }
-    #return(fn)
-    return(.LookupFunction(name))
+  if (! is.null(os)) return(os)
+  if (name == 'ROOT') {
+    logger <- list(name=name,
+      threshold=INFO, 
+      appender=appender.console(),
+      layout=layout.simple)
+    logger.options(update=list(key, logger))
+    return(logger)
   }
 
   parts <- strsplit(name, '.', fixed=TRUE)[[1]]
   parent <- paste(parts[1:length(parts)-1], collapse='.')
-  getLogger(parent)
+  flog.logger(parent)
 }
 
-# Register a logger in the system with the given threshold and appenders
-addLogger <- function(name, threshold, appender, layout)
+flog.logger(name, threshold=NULL, appender=NULL, layout=NULL) %as%
 {
-  if (is.null(name)) { name <- 'ROOT' }
-
+  logger <- flog.logger(name)
+  if (!is.null(threshold)) logger$threshold <- threshold
+  if (!is.null(appender)) logger$appender <- appender
+  if (!is.null(layout)) logger$layout <- layout
+  
   key <- paste("logger", name, sep='.')
-  my.logger <- list(name=name, threshold=threshold,
-    appender=appender, layout=layout)
-  logger.options(update=list(key, my.logger))
+  logger.options(update=list(key, logger))
   invisible()
 }
 
+
+flog.remove('ROOT') %as% { invisible() }
+flog.remove(name) %as% 
+{
+  key <- paste("logger", name, sep='.')
+  logger.options(update=list(key, NULL))
+  invisible()
+}
+
+# Get the threshold for the given logger
+flog.threshold(name) %::% character : numeric
+flog.threshold(name='ROOT') %as%
+{
+  logger <- flog.logger(name)
+  logger$threshold
+}
+
+# Set the threshold
+flog.threshold(threshold, name='ROOT') %as%
+{
+  flog.logger(name, threshold=threshold)
+  invisible()
+}
+
+# Get appenders associated with the given logger
+flog.appender(name) %::% character : Function
+flog.appender(name='ROOT') %as%
+{
+  logger <- flog.logger(name)
+  logger$appender
+}
+
+# Set the appender for the given logger
+flog.appender(fn, name='ROOT') %as%
+{
+  flog.logger(name, appender=fn)
+  invisible()
+}
+
+# Get the layout for the given logger
+flog.layout(name) %::% character : Function
+flog.layout(name='ROOT') %as%
+{
+  logger <- flog.logger(name)
+  logger$layout
+}
+
+# Set the layout
+flog.layout(fn, name='ROOT') %as%
+{
+  flog.logger(name, layout=fn)
+  invisible()
+}
 
 
