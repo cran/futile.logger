@@ -9,8 +9,8 @@
 #' \tabular{ll}{
 #' Package: \tab futile.logger\cr
 #' Type: \tab Package\cr
-#' Version: \tab 1.3.3\cr
-#' Date: \tab 2013-07-10\cr
+#' Version: \tab 1.3.5\cr
+#' Date: \tab 2013-08-15\cr
 #' License: \tab LGPL-3\cr
 #' LazyLoad: \tab yes\cr
 #' }
@@ -27,7 +27,7 @@
 #' All of the logging functions take a format string so it is easy to add
 #' arbitrary values to log messages.
 #' 
-#' \code{flog.info("This song is just \%s words \%s", 7, "long")}
+#' > flog.info("This song is just \%s words \%s", 7, "long")
 #' 
 #' Thresholds range from most verbose to least verbose: TRACE, DEBUG, INFO,
 #' WARN, ERROR, FATAL. You can easily change the threshold of the ROOT logger
@@ -35,9 +35,8 @@
 #' from every package. To suppress most logging by default but turn on all
 #' debugging for a logger 'my.logger', you would execute 
 #'
-#' \code{flog.threshold(ERROR)}
-#'
-#' \code{flog.threshold(TRACE, name='my.logger')}
+#' > flog.threshold(ERROR)\cr
+#' > flog.threshold(TRACE, name='my.logger')
 #'
 #' Any arbitrary logger can be defined simply by specifying it in any
 #' futile.logger write operation (futile.threshold, futile.appender,
@@ -57,7 +56,7 @@
 #' the logger for the given package. For instance suppose you want to output
 #' log message for my.package to a file instead.
 #' 
-#' flog.appender(appender.file('my.package.log'), name='my.package')
+#' > flog.appender(appender.file('my.package.log'), name='my.package')
 #' 
 #' Now all log statements in the package my.package will be written to a file
 #' instead of the console. All other log messages will continue to be written
@@ -68,9 +67,9 @@
 #' appender, the implementation-specific options are passed to the appender at
 #' instantiation. The package defines two appender generator functions:
 #' 
-#' \itemize{
-#'   \item appender.file - Write to a file 
-#'   \item appender.console - Write to the console
+#' \describe{
+#'   \item{appender.file}{Write to a file}
+#'   \item{appender.console}{Write to the console}
 #' }
 #' 
 #' Each of these functions returns the actual appender function, so be sure to
@@ -80,9 +79,11 @@
 #' consists of adding the log level, a timestamp, plus some pretty-printing to
 #' make the log messages easy on the eyes. The package supplies two layouts:
 #' 
-#' . layout.simple - Writes messages with a default format
-#' 
-#' . layout.format - Define your own format
+#' \describe{
+#'   \item{layout.simple}{Writes messages with a default format}
+#'   \item{layout.format}{Define your own format}
+#'   \item{layout.tracearg}{Print a variable name along with its value}
+#' }
 #' 
 #' @name futile.logger-package
 #' @aliases futile.logger-package futile.logger get_namespace
@@ -102,7 +103,9 @@
 #' flog.debug("logger.a has now been set to DEBUG", name='logger.a')
 #' flog.debug("But the ROOT logger is still at INFO (so this won't print)")
 #' 
+#' \dontrun{
 #' flog.appender(appender.file("other.log"), name='logger.b')
 #' flog.info("This writes to a %s", "file", name='logger.b')
+#' }
 #' 
 NULL

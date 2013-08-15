@@ -14,8 +14,8 @@
 }
 \details{
   \tabular{ll}{ Package: \tab futile.logger\cr Type: \tab
-  Package\cr Version: \tab 1.3.3\cr Date: \tab
-  2013-07-10\cr License: \tab LGPL-3\cr LazyLoad: \tab
+  Package\cr Version: \tab 1.3.5\cr Date: \tab
+  2013-08-15\cr License: \tab LGPL-3\cr LazyLoad: \tab
   yes\cr }
 
   The latest version of futile.logger introduces
@@ -33,8 +33,7 @@
   All of the logging functions take a format string so it
   is easy to add arbitrary values to log messages.
 
-  \code{flog.info("This song is just \%s words \%s", 7,
-  "long")}
+  > flog.info("This song is just \%s words \%s", 7, "long")
 
   Thresholds range from most verbose to least verbose:
   TRACE, DEBUG, INFO, WARN, ERROR, FATAL. You can easily
@@ -44,9 +43,8 @@
   default but turn on all debugging for a logger
   'my.logger', you would execute
 
-  \code{flog.threshold(ERROR)}
-
-  \code{flog.threshold(TRACE, name='my.logger')}
+  > flog.threshold(ERROR)\cr > flog.threshold(TRACE,
+  name='my.logger')
 
   Any arbitrary logger can be defined simply by specifying
   it in any futile.logger write operation
@@ -72,7 +70,7 @@
   suppose you want to output log message for my.package to
   a file instead.
 
-  flog.appender(appender.file('my.package.log'),
+  > flog.appender(appender.file('my.package.log'),
   name='my.package')
 
   Now all log statements in the package my.package will be
@@ -86,8 +84,8 @@
   appender at instantiation. The package defines two
   appender generator functions:
 
-  \itemize{ \item appender.file - Write to a file \item
-  appender.console - Write to the console }
+  \describe{ \item{appender.file}{Write to a file}
+  \item{appender.console}{Write to the console} }
 
   Each of these functions returns the actual appender
   function, so be sure to actually call the function!
@@ -98,9 +96,10 @@
   messages easy on the eyes. The package supplies two
   layouts:
 
-  . layout.simple - Writes messages with a default format
-
-  . layout.format - Define your own format
+  \describe{ \item{layout.simple}{Writes messages with a
+  default format} \item{layout.format}{Define your own
+  format} \item{layout.tracearg}{Print a variable name
+  along with its value} }
 }
 \examples{
 flog.debug("This \%s print", "won't")
@@ -111,8 +110,10 @@ flog.threshold(DEBUG, name='logger.a')
 flog.debug("logger.a has now been set to DEBUG", name='logger.a')
 flog.debug("But the ROOT logger is still at INFO (so this won't print)")
 
+\dontrun{
 flog.appender(appender.file("other.log"), name='logger.b')
 flog.info("This writes to a \%s", "file", name='logger.b')
+}
 }
 \author{
   Brian Lee Yung Rowe <r@zatonovo.com>
