@@ -3,7 +3,7 @@
 \alias{flog.namespace}
 \alias{futile.logger}
 \alias{futile.logger-package}
-\title{An easy to use logging package for R}
+\title{A Logging Utility for R}
 \description{
   This package implements a logging system inspired by
   log4j. The basic idea of layouts, appenders, and loggers
@@ -14,9 +14,8 @@
 }
 \details{
   \tabular{ll}{ Package: \tab futile.logger\cr Type: \tab
-  Package\cr Version: \tab 1.3.7\cr Date: \tab
-  2013-10-13\cr License: \tab LGPL-3\cr LazyLoad: \tab
-  yes\cr }
+  Package\cr Version: \tab 1.4\cr Date: \tab 2015-03-20\cr
+  License: \tab LGPL-3\cr LazyLoad: \tab yes\cr }
 
   The latest version of futile.logger introduces
   zero-configuration semantics out of the box. This means
@@ -93,11 +92,12 @@
   Layouts are responsible for formatting messages. This
   operation usually consists of adding the log level, a
   timestamp, plus some pretty-printing to make the log
-  messages easy on the eyes. The package supplies two
+  messages easy on the eyes. The package supplies several
   layouts:
 
   \describe{ \item{layout.simple}{Writes messages with a
-  default format} \item{layout.format}{Define your own
+  default format} \item{layout.json}{Generates messages in
+  a JSON format} \item{layout.format}{Define your own
   format} \item{layout.tracearg}{Print a variable name
   along with its value} }
 }
