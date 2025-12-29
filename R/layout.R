@@ -14,6 +14,15 @@
 #' # Decorate log messages with a standard format\cr
 #' layout.simple(level, msg, ...)
 #' 
+#' # Decorate log messages with a standard format colored by log level\cr
+#' layout.colored(level, msg, ...)
+#'
+#' # Decorate log messages with a standard format using glue instead of sprintf\cr
+#' layout.glue(level, msg, ...)
+#'
+#' # Decorate log messages with a standard format and a pid\cr
+#' layout.simple.parallel(level, msg, ...)
+#'
 #' # Generate log messages as JSON\cr
 #' layout.json(level, msg, ...)
 #'
@@ -22,6 +31,9 @@
 #'
 #' # Show the value of a single variable
 #' layout.tracearg(level, msg, ...)
+#' 
+#' # Generate log messages in a Graylog2 HTTP GELF accetable format
+#' layout.graylog(common.fields)
 #' 
 #' @section Details:
 #' Layouts are responsible for formatting messages so they are human-readable.
@@ -44,6 +56,8 @@
 #' \item{~n}{Namespace}
 #' \item{~f}{The calling function}
 #' \item{~m}{The message}
+#' \item{~p}{The process PID}
+#' \item{~i}{Logger name}
 #' }
 #'
 #' \code{layout.json} converts the message and any additional objects provided
@@ -58,8 +72,16 @@
 #' \code{layout.tracearg} is a special layout that takes a variable
 #' and prints its name and contents.
 #' 
+#' \code{layout.graylog} is a special layout for use with the appender.graylog to
+#' generate json acceptable to a Graylog2 HTTP GELF endpoint. Standard fields to
+#' be included with every message can be included by setting the common.fields
+#' to a list of properties. E.g.: 
+#' 
+#' flog.layout(layout.graylog(common.fields = list(host_ip = "10.10.11.23", 
+#'                                                 env = "production")))
+#' 
 #' @name flog.layout
-#' @aliases layout.simple layout.format layout.tracearg layout.json
+#' @aliases layout.simple layout.simple.parallel layout.format layout.tracearg layout.json layout.graylog layout.glue layout.colored
 #' @param \dots Used internally by lambda.r
 #' @author Brian Lee Yung Rowe
 #' @seealso \code{\link{flog.logger}} \code{\link{flog.appender}}
@@ -93,29 +115,58 @@ flog.layout(fn, name='ROOT') %as%
   invisible()
 }
 
+#' Provide basic parsing for layout string
+#'
+#' Return name of argument if arg is empty. Otherwise return the value.
+#'
+#' @param x The argument to prepare
+prepare_arg <- function(x) {
+  if (is.null(x) || length(x) == 0) return(deparse(x))
+  x
+}
+
 # This file provides some standard formatters
 # This prints out a string in the following format:
 #   LEVEL [timestamp] message
-layout.simple <- function(level, msg, ...)
+layout.simple <- function(level, msg, id='', ...)
 {
   the.time <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   if (length(list(...)) > 0) {
-    parsed <- lapply(list(...), function(x) ifelse(is.null(x), 'NULL', x))
+    parsed <- lapply(list(...), prepare_arg)
     msg <- do.call(sprintf, c(msg, parsed))
   }
   sprintf("%s [%s] %s\n", names(level),the.time, msg)
 }
 
+layout.simple.parallel <- function(level, msg, id='', ...)
+{
+  the.time <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  the.pid  <- Sys.getpid()
+  if (length(list(...)) > 0) {
+    parsed <- lapply(list(...), prepare_arg)
+    msg <- do.call(sprintf, c(msg, parsed))
+  }
+  sprintf("%s [%s %s] %s\n", names(level), the.time, the.pid, msg)
+}
+
+# Get name of a parent function in call stack
+# @param .where: where in the call stack. -1 means parent of the caller.
+.get.parent.func.name <- function(.where) {
+  the.function <- tryCatch(deparse(sys.call(.where - 1)[[1]]), 
+        error=function(e) "(shell)")
+  the.function <- ifelse(
+    length(grep('flog\\.',the.function)) == 0, the.function, '(shell)')
+
+  the.function
+}
+
 # Generates a list object, then converts it to JSON and outputs it
-layout.json <- function(level, msg, ...) {
+layout.json <- function(level, msg, id='', ...) {
   if (!requireNamespace("jsonlite", quietly=TRUE))
     stop("layout.json requires jsonlite. Please install it.", call.=FALSE)
   
-  where <- 1 # to avoid R CMD CHECK issue
-  the.function <- tryCatch(deparse(sys.call(where)[[1]]),
-    error=function(e) "(shell)")
-  the.function <- ifelse(
-    length(grep('flog\\.',the.function)) == 0, the.function, '(shell)')
+  the.function <- .get.parent.func.name(-3) # get name of the function 
+                                            # 3 deep in the call stack
   
   output_list <- list(
     level=jsonlite::unbox(names(level)),
@@ -124,7 +175,7 @@ layout.json <- function(level, msg, ...) {
     func=jsonlite::unbox(the.function),
     additional=...
   )
-  jsonlite::toJSON(output_list, simplifyVector=TRUE)
+  paste0(jsonlite::toJSON(output_list, simplifyVector=TRUE), '\n')
 }
 
 # This parses and prints a user-defined format string. Available tokens are
@@ -133,20 +184,23 @@ layout.json <- function(level, msg, ...) {
 # ~n - Namespace
 # ~f - Calling function
 # ~m - Message
+# ~p - PID
 #
 # layout <- layout.format('[~l] [~t] [~n.~f] ~m')
 # flog.layout(layout)
 layout.format <- function(format, datetime.fmt="%Y-%m-%d %H:%M:%S")
 {
-  where <- 1
-  function(level, msg, ...) {
+  .where = -3 # get name of the function 3 deep in the call stack
+              # that is, the function that has called flog.*
+  function(level, msg, id='', ...) {
     if (! is.null(substitute(...))) msg <- sprintf(msg, ...)
     the.level <- names(level)
     the.time <- format(Sys.time(), datetime.fmt)
-    the.namespace <- ifelse(flog.namespace() == 'futile.logger','ROOT',flog.namespace())
-    #print(sys.calls())
-    the.function <- tryCatch(deparse(sys.call(where)[[1]]), error=function(e) "(shell)")
-    the.function <- ifelse(length(grep('flog\\.',the.function)) == 0, the.function, '(shell)')
+    the.namespace <- flog.namespace(.where)
+    the.namespace <- ifelse(the.namespace == 'futile.logger', 'ROOT', the.namespace)
+    the.function <- .get.parent.func.name(.where)
+    the.pid <- Sys.getpid()
+    the.id <- ifelse(id %in% c('', 'futile.logger'), 'ROOT', id) 
     #pattern <- c('~l','~t','~n','~f','~m')
     #replace <- c(the.level, the.time, the.namespace, the.function, msg)
     message <- gsub('~l',the.level, format, fixed=TRUE)
@@ -154,11 +208,13 @@ layout.format <- function(format, datetime.fmt="%Y-%m-%d %H:%M:%S")
     message <- gsub('~n',the.namespace, message, fixed=TRUE)
     message <- gsub('~f',the.function, message, fixed=TRUE)
     message <- gsub('~m',msg, message, fixed=TRUE)
+    message <- gsub('~p',the.pid, message, fixed=TRUE)
+    message <- gsub('~i',the.id, message, fixed=TRUE)
     sprintf("%s\n", message)
   }
 }
 
-layout.tracearg <- function(level, msg, ...)
+layout.tracearg <- function(level, msg, id='', ...)
 {
   the.time <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
   if (is.character(msg)) {
@@ -180,4 +236,73 @@ layout.tracearg <- function(level, msg, ...)
     msg <- sprintf("%s: %s", label, c(msg, list(...)))
   }
   sprintf("%s [%s] %s\n", names(level),the.time, msg)
+}
+
+
+# This creates a json string that will work with the appender.graylog
+layout.graylog <- function(common.fields, datetime.fmt="%Y-%m-%d %H:%M:%S")
+{
+  .where = -3 # get name of the function 3 deep in the call stack
+  # that is, the function that has called flog.*
+  
+  missing.common.fields <- missing(common.fields)
+  
+  function(level, msg, id='', ...) {
+    
+    if (! is.null(substitute(...))) msg <- sprintf(msg, ...)
+    
+    the.namespace <- flog.namespace(.where)
+    
+    output_list <- list(
+      flogger_level = names(level),
+      time = format(Sys.time(), datetime.fmt), 
+      namespace = ifelse(the.namespace == 'futile.logger', 'ROOT', the.namespace),
+      func = .get.parent.func.name(.where), 
+      pid = Sys.getpid(),
+      message = msg
+    )
+    
+    if (!missing.common.fields)
+      output_list <- c(output_list, common.fields)
+    
+    jsonlite::toJSON(output_list, auto_unbox = TRUE)
+    
+  }
+}  
+
+                           
+layout.colored <- function(level, msg, id='', ...)
+{
+
+  if (!requireNamespace("crayon", quietly = TRUE)) {
+    stop("Colored logging requires the 'crayon' package to be installed.")
+  }
+
+  the.time <- format(Sys.time(), "[%Y-%m-%d %H:%M:%S]")
+
+  if (length(list(...)) > 0) {
+    parsed <- lapply(list(...), function(x) if(is.null(x)) 'NULL' else x )
+    msg <- do.call(sprintf, c(msg, parsed))
+  }
+
+  color <- switch(
+    names(level),
+    'FATAL' = function(x) crayon::bgRed(crayon::black(x)),
+    'ERROR' = crayon::red,
+    'WARN'  = crayon::yellow,
+    'INFO'  = crayon::blue,
+    'DEBUG' = crayon::silver,
+    'TRACE' = crayon::blurred,
+    crayon::white
+    )
+
+  color(paste(crayon::bold(names(level)), the.time, msg, crayon::reset('\n')))
+}
+
+layout.glue <- function(level, msg, id='', ...)
+{
+  if (!requireNamespace("glue", quietly=TRUE))
+    stop("layout.glue requires glue. Please install it.", call.=FALSE)
+  msg <- do.call(glue::glue, c(msg, list(...)), envir = parent.frame(3))
+  layout.simple(level, msg)
 }

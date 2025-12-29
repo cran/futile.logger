@@ -6,25 +6,25 @@
 #' 
 #' @section Usage:
 #' # Conditionally print a log statement at TRACE log level\cr
-#' flog.trace(msg, ..., name=flog.namespace(), capture=FALSE)
+#' flog.trace(msg, ..., name=flog.namespace(), logger=NULL, capture=FALSE)
 #'
 #' # Conditionally print a log statement at DEBUG log level\cr
-#' flog.debug(msg, ..., name=flog.namespace(), capture=FALSE)
+#' flog.debug(msg, ..., name=flog.namespace(), logger=NULL, capture=FALSE)
 #'
 #' # Conditionally print a log statement at INFO log level\cr
-#' flog.info(msg, ..., name=flog.namespace(), capture=FALSE)
+#' flog.info(msg, ..., name=flog.namespace(), logger=NULL, capture=FALSE)
 #'
 #' # Conditionally print a log statement at WARN log level\cr
-#' flog.warn(msg, ..., name=flog.namespace(), capture=FALSE)
+#' flog.warn(msg, ..., name=flog.namespace(), logger=NULL, capture=FALSE)
 #'
 #' # Conditionally print a log statement at ERROR log level\cr
-#' flog.error(msg, ..., name=flog.namespace(), capture=FALSE)
+#' flog.error(msg, ..., name=flog.namespace(), logger=NULL, capture=FALSE)
 #'
 #' # Print a log statement at FATAL log level\cr
-#' flog.fatal(msg, ..., name=flog.namespace(), capture=FALSE)
+#' flog.fatal(msg, ..., name=flog.namespace(), logger=NULL, capture=FALSE)
 #'
 #' # Execute an expression and capture any warnings or errors
-#' ftry(expr, error=stop, finally=NULL)
+#' ftry(expr, error=stop, silent=FALSE, finally=NULL, details='')
 #'
 #' @section Additional Usage:
 #' These functions generally do not need to be called by an end user.
@@ -74,6 +74,25 @@
 #' > flog.info("This won't print", name='my.logger') \cr
 #' > flog.error("This %s print to a file", 'will', name='my.logger') \cr
 #' 
+#' If you have a function which gets called many times, it is a good strategy 
+#' to pass the logger directly instead of its name.
+#' 
+#' Instead of this:
+#' > simulation_fun <- function(i) {
+#' >   flog.trace("We are in loop %d", i, name='my.logger')
+#' >   i
+#' > }
+#' 
+#' ... you can do this::
+#' > my_logger <- flog.logger("my.logger")
+#' > simulation_fun2 <- function(i) {
+#' >   flog.trace("We are in loop %d", i, logger=my_logger)
+#' >   i
+#' > }
+#' 
+#' > system.time(for (i in 1:1000) simulation_fun(i))
+#' > system.time(for (i in 1:1000) simulation_fun2(i))
+#' 
 #' If you define a logger that you later want to remove, use flog.remove.
 #' 
 #' The option 'capture' allows you to print out more complicated data
@@ -91,6 +110,10 @@
 #' @param msg The message to log
 #' @param name The logger name to use
 #' @param capture Capture print output of variables instead of interpolate
+#' @param logger The logger to use. If \code{NULL} (the default), it is 
+#' looked up based on \code{name}. Provide \code{logger} explicitely if 
+#' the speed of the evaluation of log level is of concern (e.g., a 
+#' \code{flog.trace} call in your function which has to be run many times).
 #' @param \dots Optional arguments to populate the format string
 #' @param expr An expression to evaluate
 #' @param finally An optional expression to evaluate at the end
@@ -122,24 +145,28 @@
 #' flog.threshold(WARN,'tawny')
 #' ws <- optimizePortfolio(p, RandomMatrixDenoiser())
 #' z <- getIndexComposition()
+#' }
 #'
+#' \dontrun{
+#' flog.appender(appender.modulo(1000), name='counter')
+#' lapply(1:10000, function(i) flog.info("value is %s",i, name='counter'))
 #' }
 NULL
 
-.log_level <- function(msg, ..., level, name, capture)
+.log_level <- function(msg, ..., level, name, capture, logger = NULL)
 {
-  logger <- flog.logger(name)
+  if (is.null(logger)) logger <- flog.logger(name)
   if (level > logger$threshold && (is.null(logger$carp) || !logger$carp)) {
     return(invisible())
   }
 
-  appender <- flog.appender(name)
-  layout <- flog.layout(name)
+  appender <- logger$appender
+  layout <- logger$layout
   if (capture) {
     values <- paste(capture.output(print(...)), collapse='\n')
-    message <- c(layout(level, msg), "\n", values, "\n")
+    message <- c(layout(level, msg, name), "\n", values, "\n")
   } else {
-    message <- layout(level, msg, ...)
+    message <- layout(level, msg, name, ...)
   }
   if (level <= logger$threshold) appender(message)
   invisible(message)
@@ -147,10 +174,18 @@ NULL
 
 # Get the namespace that a function resides in. If no namespace exists, then
 # return NULL.
+# @param .where: where in the call stack should be check. 
+#             0: current function (always
+#            -1: parents of this function.
+#            -3: when used within flog.*, 
+#                it refers to the original caller of flog.*
+#            -4: when used from flogger.name within a .log_level
+#
 # <environment: namespace:lambda.r>
-flog.namespace <- function(where=1)
+flog.namespace <- function(.where=-4)
 {
-  s <- capture.output(str(topenv(environment(sys.function(where))), give.attr=FALSE))
+  sf <- sys.function(.where - 1)
+  s <- format(topenv(environment(sf)))
   if (length(grep('lambda.r',s)) > 0)
     s <- attr(sys.function(-5), 'topenv')
 
@@ -160,29 +195,28 @@ flog.namespace <- function(where=1)
   ifelse(is.null(ns), 'ROOT', ns)
 }
 
-
-flog.trace <- function(msg, ..., name=flog.namespace(), capture=FALSE) {
-  .log_level(msg, ..., level=TRACE,name=name, capture=capture)
+flog.trace <- function(msg, ..., name=flog.namespace(), capture=FALSE, logger=NULL) {
+  .log_level(msg, ..., level=TRACE,name=name, capture=capture, logger=logger)
 }
 
-flog.debug <- function(msg, ..., name=flog.namespace(), capture=FALSE) {
-  .log_level(msg, ..., level=DEBUG,name=name, capture=capture)
+flog.debug <- function(msg, ..., name=flog.namespace(), capture=FALSE, logger=NULL) {
+  .log_level(msg, ..., level=DEBUG,name=name, capture=capture, logger=logger)
 }
 
-flog.info <- function(msg, ..., name=flog.namespace(), capture=FALSE) {
-  .log_level(msg, ..., level=INFO,name=name, capture=capture)
+flog.info <- function(msg, ..., name=flog.namespace(), capture=FALSE, logger=NULL) {
+  .log_level(msg, ..., level=INFO,name=name, capture=capture, logger=logger)
 }
 
-flog.warn <- function(msg, ..., name=flog.namespace(), capture=FALSE) {
-  .log_level(msg, ..., level=WARN,name=name, capture=capture)
+flog.warn <- function(msg, ..., name=flog.namespace(), capture=FALSE, logger=NULL) {
+  .log_level(msg, ..., level=WARN,name=name, capture=capture, logger=logger)
 }
 
-flog.error <- function(msg, ..., name=flog.namespace(), capture=FALSE) {
-  .log_level(msg, ..., level=ERROR,name=name, capture=capture)
+flog.error <- function(msg, ..., name=flog.namespace(), capture=FALSE, logger=NULL) {
+  .log_level(msg, ..., level=ERROR,name=name, capture=capture, logger=logger)
 }
 
-flog.fatal <- function(msg, ..., name=flog.namespace(), capture=FALSE) {
-  .log_level(msg, ..., level=FATAL,name=name, capture=capture)
+flog.fatal <- function(msg, ..., name=flog.namespace(), capture=FALSE, logger=NULL) {
+  .log_level(msg, ..., level=FATAL,name=name, capture=capture, logger=logger)
 }
 
 #' Wrap a try block in futile.logger
@@ -195,14 +229,39 @@ flog.fatal <- function(msg, ..., name=flog.namespace(), capture=FALSE) {
 #' @param expr The expression to evaluate in a try block
 #' @param error An error handler
 #' @param finally Pass-through to tryCatch finally
+#' @param silent Boolean - should errors be rethrown? The same as the silent option on `try`.
+#' If a custom error handler is being used that takes control over this option. Note you should
+#' test the return value if you are dependent on it.
+#' @param details An extra string to print when there's a warning message
 #' @author Brian Lee Yung Rowe
 #' @keywords data
 #' @examples
-#' ftry(log(-1))
-ftry <- function(expr, error=stop, finally=NULL) {
-  w.handler <- function(e) flog.warn("%s", e)
-  e.handler <- function(e) { flog.error("%s", e); error(e) }
-  tryCatch(expr, warning=w.handler, error=e.handler, finally)
+#' \dontrun{
+#' ftry(log("a")) # Logs the warning (but the warning still bubbles)
+#'
+#' x <- 'a'
+#' y <- 2 # Some ID associated with x value
+#' ftry(log("a"), details=sprintf("y = %s",y))
+#'
+#' ftry(log(-1)) # Logs the error and rethrows it
+#' }
+#' ftry(log(-1),silent=TRUE) # logs the error and silently continues
+ftry <- function(expr, error=stop, finally=NULL, silent=FALSE, details='') {
+  w.handler <- function(e) {
+    flog.warn(paste("(",details,") %s", sep=''), e)
+  }
+  e.handler <- function(e) {
+    flog.error(paste("(",details,") %s", sep=''), e)
+    if (!silent | !isTRUE(all.equal(error, stop))) { error(e) }
+  }
+  tryCatch(
+    withCallingHandlers(
+      expr,
+      warning = w.handler
+    ),
+    error = e.handler,
+    finally
+  )
 }
 
 # By default, use the package namespace or use the 'ROOT' logger.
@@ -222,7 +281,7 @@ flog.logger(name) %as%
   if (! is.null(os)) return(os)
   if (name == 'ROOT') {
     logger <- list(name=name,
-      threshold=INFO, 
+      threshold=INFO,
       appender=appender.console(),
       layout=layout.simple)
     logger.options(update=list(key, logger))
@@ -241,7 +300,7 @@ flog.logger(name, threshold=NULL, appender=NULL, layout=NULL, carp=NULL) %as%
   if (!is.null(appender)) logger$appender <- appender
   if (!is.null(layout)) logger$layout <- layout
   if (!is.null(carp)) logger$carp <- carp
-  
+
   key <- paste("logger", name, sep='.')
   logger.options(update=list(key, logger))
   invisible()
@@ -268,7 +327,7 @@ flog.logger(name, threshold=NULL, appender=NULL, layout=NULL, carp=NULL) %as%
 #' flog.remove('my.logger')
 #' flog.info("Will print", name='my.logger')
 flog.remove('ROOT') %as% { invisible() }
-flog.remove(name) %as% 
+flog.remove(name) %as%
 {
   key <- paste("logger", name, sep='.')
   logger.options(update=list(key, NULL))
@@ -316,6 +375,8 @@ flog.threshold('error', name='ROOT') %as% flog.threshold(ERROR, name)
 flog.threshold('FATAL', name='ROOT') %as% flog.threshold(FATAL, name)
 flog.threshold('fatal', name='ROOT') %as% flog.threshold(FATAL, name)
 
+
+flog.threshold(threshold, name) %::% numeric : character : .
 flog.threshold(threshold, name='ROOT') %as%
 {
   flog.logger(name, threshold=threshold)

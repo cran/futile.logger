@@ -9,8 +9,8 @@
 #' \tabular{ll}{
 #' Package: \tab futile.logger\cr
 #' Type: \tab Package\cr
-#' Version: \tab 1.4.3\cr
-#' Date: \tab 2016-07-10\cr
+#' Version: \tab 1.4.9\cr
+#' Date: \tab 2025-12-22\cr
 #' License: \tab LGPL-3\cr
 #' LazyLoad: \tab yes\cr
 #' }
@@ -81,6 +81,7 @@
 #' 
 #' \describe{
 #'   \item{layout.simple}{Writes messages with a default format}
+#'   \item{layout.simple.parallel}{Writes messages with a default format with PID}
 #'   \item{layout.json}{Generates messages in a JSON format}
 #'   \item{layout.format}{Define your own format}
 #'   \item{layout.tracearg}{Print a variable name along with its value}
